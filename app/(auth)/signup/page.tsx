@@ -54,7 +54,7 @@ export default function SignupPage() {
     }
 
     if (isDuplicateSignup(data.user)) {
-      setError('이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용해주세요.');
+      setError('이미 가입된 이메일입니다. 로그인해 주세요.');
       setLoading(false);
       return;
     }
@@ -78,6 +78,26 @@ export default function SignupPage() {
 
     setSuccess(true);
     setLoading(false);
+  };
+
+  const handleKakao = async () => {
+    setLoading(true);
+    setError('');
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: 'kakao',
+      options: {
+        redirectTo: authConfirmUrl('/dashboard'),
+      },
+    });
+    if (oauthError) {
+      setError(
+        mapAuthError(
+          oauthError,
+          '카카오 로그인을 사용할 수 없습니다. Supabase에서 Kakao 로그인을 켜주세요.',
+        ),
+      );
+      setLoading(false);
+    }
   };
 
   if (success) {
@@ -173,8 +193,6 @@ export default function SignupPage() {
               {error.includes('이미 가입') && (
                 <p>
                   <Link href="/login" className="underline hover:text-white">로그인</Link>
-                  {' · '}
-                  <Link href="/forgot-password" className="underline hover:text-white">비밀번호 찾기</Link>
                 </p>
               )}
             </div>
@@ -186,6 +204,15 @@ export default function SignupPage() {
             className="w-full py-3 bg-[#c41e3a] hover:bg-[#a01830] rounded-lg font-medium transition-colors disabled:opacity-50"
           >
             {loading ? '가입 중...' : '회원가입'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleKakao}
+            disabled={loading}
+            className="w-full py-3 bg-[#FEE500] hover:bg-[#f5dc00] text-[#191919] rounded-lg font-medium transition-colors disabled:opacity-50"
+          >
+            카카오 로그인
           </button>
         </form>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase';
 import { mapAuthError } from '@/lib/auth-errors';
 import { ensureLabForUser } from '@/lib/ensure-lab';
@@ -32,6 +32,11 @@ export default function LoginPage() {
   const [step, setStep] = useState<'login' | 'otp'>('login');
   const router = useRouter();
   const supabase = createClient();
+
+  useEffect(() => {
+    const fromLink = new URLSearchParams(window.location.search).get('error');
+    if (fromLink) setError(fromLink);
+  }, []);
 
   const sendOtp = async (to: string) => {
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(to, {

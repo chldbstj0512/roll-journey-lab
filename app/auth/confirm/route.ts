@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   const next = safeNext(nextParam, isRecovery ? '/reset-password' : '/dashboard');
 
   const redirectWithError = (message: string) =>
-    NextResponse.redirect(`${origin}/forgot-password?error=${encodeURIComponent(message)}`);
+    NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(message)}`);
 
   if (authError) {
     return redirectWithError('재설정 링크가 만료되었거나 유효하지 않습니다. 다시 요청해주세요.');
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
   if (verifyError) {
     return redirectWithError(
       isRecovery
-        ? '재설정 링크가 만료되었거나 유효하지 않습니다. 비밀번호 찾기를 다시 시도해주세요.'
+        ? '재설정 링크가 만료되었거나 유효하지 않습니다. 로그인에서 다시 시도해주세요.'
         : '인증에 실패했습니다. 링크가 만료되었을 수 있습니다.',
     );
   }
