@@ -188,5 +188,6 @@ roll-journey-lab/
 
 - Supabase 프로젝트 ID: `zdplcnopfeyiesyywtno`
 - 운영 웹: https://roll-journey-lab-indol.vercel.app
+- 전체 스펙(Vercel/Supabase/카카오/R2): [docs/stack.md](docs/stack.md)
 - 카카오 로그인 설정/오류 대응: [docs/kakao-login.md](docs/kakao-login.md)
 - 이메일 로그인·인증 메일: [docs/email-login.md](docs/email-login.md)
