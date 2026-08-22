@@ -7,6 +7,8 @@ import { ensureLabForUser } from '@/lib/ensure-lab';
 import { authConfirmUrl } from '@/lib/auth-redirect';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { EmailOtpForm } from '@/components/email-otp-form';
+import type { EmailOtpType } from '@supabase/supabase-js';
 
 async function lookupEmail(email: string): Promise<boolean | null> {
   try {
@@ -30,6 +32,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'login' | 'otp'>('login');
+  const [otpType, setOtpType] = useState<EmailOtpType>('recovery');
   const router = useRouter();
   const supabase = createClient();
 
@@ -38,7 +41,7 @@ export default function LoginPage() {
     if (fromLink) setError(fromLink);
   }, []);
 
-  const sendOtp = async (to: string) => {
+  const sendRecoveryOtp = async (to: string) => {
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(to, {
       redirectTo: authConfirmUrl('/reset-password'),
     });
@@ -46,6 +49,22 @@ export default function LoginPage() {
       setError(mapAuthError(resetError));
       return false;
     }
+    setOtpType('recovery');
+    setStep('otp');
+    setError('');
+    return true;
+  };
+
+  const sendSignupOtp = async (to: string) => {
+    const { error: resendError } = await supabase.auth.resend({
+      type: 'signup',
+      email: to,
+    });
+    if (resendError) {
+      setError(mapAuthError(resendError));
+      return false;
+    }
+    setOtpType('signup');
     setStep('otp');
     setError('');
     return true;
@@ -67,6 +86,15 @@ export default function LoginPage() {
       const invalidCredentials =
         code === 'invalid_credentials' || message.includes('invalid login credentials');
 
+      const emailNotConfirmed =
+        code === 'email_not_confirmed' || message.includes('email not confirmed');
+
+      if (emailNotConfirmed) {
+        await sendSignupOtp(email);
+        setLoading(false);
+        return;
+      }
+
       if (invalidCredentials) {
         const exists = await lookupEmail(email);
         if (exists === false) {
@@ -74,7 +102,7 @@ export default function LoginPage() {
           setLoading(false);
           return;
         }
-        await sendOtp(email);
+        await sendRecoveryOtp(email);
         setLoading(false);
         return;
       }
@@ -99,7 +127,7 @@ export default function LoginPage() {
     const { error: verifyError } = await supabase.auth.verifyOtp({
       email,
       token: otp.trim(),
-      type: 'recovery',
+      type: otpType,
     });
 
     if (verifyError) {
@@ -108,7 +136,16 @@ export default function LoginPage() {
       return;
     }
 
-    router.replace('/reset-password');
+    if (otpType === 'recovery') {
+      router.replace('/reset-password');
+      return;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await ensureLabForUser(supabase, user);
+    }
+    router.replace('/dashboard');
   };
 
   const handleKakao = () => {
@@ -180,40 +217,21 @@ export default function LoginPage() {
             </button>
           </form>
         ) : (
-          <form onSubmit={handleVerifyOtp} className="space-y-4">
-            <p className="text-sm text-[#888]">
-              <span className="text-white">{email}</span>로 인증번호를 보냈습니다.
-            </p>
-            <div>
-              <label className="block text-sm text-[#888] mb-2">인증번호</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                className="w-full px-4 py-3 bg-[#141414] border border-[#2a2a2a] rounded-lg focus:outline-none focus:border-[#c41e3a] transition-colors tracking-[0.4em] text-center text-lg"
-                placeholder="000000"
-                required
-              />
-            </div>
-            {error && <p className="text-[#c41e3a] text-sm">{error}</p>}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-[#c41e3a] hover:bg-[#a01830] rounded-lg font-medium transition-colors disabled:opacity-50"
-            >
-              {loading ? '확인 중...' : '확인'}
-            </button>
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => sendOtp(email)}
-              className="w-full py-3 text-sm text-[#888] hover:text-white"
-            >
-              인증번호 다시 보내기
-            </button>
-          </form>
+          <EmailOtpForm
+            email={email}
+            otp={otp}
+            loading={loading}
+            error={error}
+            onOtpChange={setOtp}
+            onSubmit={handleVerifyOtp}
+            onResend={() => {
+              if (otpType === 'signup') {
+                void sendSignupOtp(email);
+                return;
+              }
+              void sendRecoveryOtp(email);
+            }}
+          />
         )}
 
         {step === 'login' && (

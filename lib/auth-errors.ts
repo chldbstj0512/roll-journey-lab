@@ -23,7 +23,7 @@ export function mapAuthError(
     message.includes('already been registered') ||
     message.includes('user already exists')
   ) {
-    return '이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용해주세요.';
+    return '이미 가입된 이메일입니다. 로그인해 주세요.';
   }
   if (code === 'weak_password' || message.includes('password should be at least')) {
     return '비밀번호는 6자 이상이어야 합니다.';
@@ -38,7 +38,7 @@ export function mapAuthError(
     return '이전과 다른 비밀번호를 입력해주세요.';
   }
   if (message.includes('expired') || code === 'otp_expired') {
-    return '링크가 만료되었습니다. 비밀번호 찾기를 다시 시도해주세요.';
+    return '인증번호가 만료되었습니다. 다시 보내주세요.';
   }
 
   return error.message?.trim() || fallback;

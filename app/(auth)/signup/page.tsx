@@ -7,6 +7,7 @@ import { isDuplicateSignup, mapAuthError } from '@/lib/auth-errors';
 import { ensureLabForUser } from '@/lib/ensure-lab';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { EmailOtpForm } from '@/components/email-otp-form';
 
 export default function SignupPage() {
   const [labName, setLabName] = useState('');
@@ -16,6 +17,7 @@ export default function SignupPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [otp, setOtp] = useState('');
   const router = useRouter();
   const supabase = createClient();
 
@@ -80,6 +82,46 @@ export default function SignupPage() {
     setLoading(false);
   };
 
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email,
+      token: otp.trim(),
+      type: 'signup',
+    });
+    if (verifyError) {
+      setError(mapAuthError(verifyError, '인증번호가 올바르지 않습니다.'));
+      setLoading(false);
+      return;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { error: labError } = await ensureLabForUser(supabase, user, labName);
+      if (labError) {
+        setError(labError);
+        setLoading(false);
+        return;
+      }
+    }
+    router.replace('/dashboard');
+  };
+
+  const resendSignupOtp = async () => {
+    const { error: resendError } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+    });
+    if (resendError) {
+      setError(mapAuthError(resendError));
+    } else {
+      setError('');
+    }
+  };
+
   const handleKakao = () => {
     window.location.assign('/auth/kakao/start');
   };
@@ -87,25 +129,20 @@ export default function SignupPage() {
   if (success) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-md text-center">
-          <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-green-500/20 flex items-center justify-center">
-            <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-light tracking-widest mb-2">ROLL & JOURNEY</h1>
+            <p className="text-[#666] text-sm">이메일 인증</p>
           </div>
-          <h1 className="text-2xl font-light tracking-widest mb-2">ROLL & JOURNEY</h1>
-          <h2 className="text-xl font-medium mb-4">회원가입 완료!</h2>
-          <p className="text-[#888] mb-6">
-            <span className="text-white">{email}</span>로<br />
-            인증 메일을 보냈습니다.<br />
-            이메일을 확인해주세요.
-          </p>
-          <Link
-            href="/login"
-            className="inline-block px-6 py-3 bg-[#c41e3a] hover:bg-[#a01830] rounded-lg transition-colors"
-          >
-            로그인 페이지로
-          </Link>
+          <EmailOtpForm
+            email={email}
+            otp={otp}
+            loading={loading}
+            error={error}
+            onOtpChange={setOtp}
+            onSubmit={handleVerifyOtp}
+            onResend={() => void resendSignupOtp()}
+          />
         </div>
       </div>
     );
