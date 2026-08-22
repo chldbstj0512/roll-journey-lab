@@ -2,6 +2,9 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase';
+import { authConfirmUrl } from '@/lib/auth-redirect';
+import { isDuplicateSignup, mapAuthError } from '@/lib/auth-errors';
+import { ensureLabForUser } from '@/lib/ensure-lab';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -40,39 +43,41 @@ export default function SignupPage() {
         data: {
           lab_name: labName,
         },
+        emailRedirectTo: authConfirmUrl('/dashboard'),
       },
     });
 
     if (signUpError) {
-      setError(signUpError.message);
+      setError(mapAuthError(signUpError));
       setLoading(false);
       return;
     }
 
-    if (data.user) {
-      const { error: insertError } = await supabase.from('labs').insert({
-        id: data.user.id,
-        name: labName,
-        email: email,
-      });
+    if (isDuplicateSignup(data.user)) {
+      setError('이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용해주세요.');
+      setLoading(false);
+      return;
+    }
 
-      if (insertError) {
-        console.error('Lab insert error:', insertError);
-      }
+    if (!data.user) {
+      setError('회원가입에 실패했습니다. 다시 시도해주세요.');
+      setLoading(false);
+      return;
+    }
 
-      if (data.user.identities?.length === 0) {
-        setError('이미 가입된 이메일입니다');
+    if (data.session) {
+      const { error: labError } = await ensureLabForUser(supabase, data.user, labName);
+      if (labError) {
+        setError(labError);
         setLoading(false);
         return;
       }
-
-      if (data.session) {
-        router.push('/dashboard');
-      } else {
-        setSuccess(true);
-        setLoading(false);
-      }
+      router.push('/dashboard');
+      return;
     }
+
+    setSuccess(true);
+    setLoading(false);
   };
 
   if (success) {
@@ -131,6 +136,7 @@ export default function SignupPage() {
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-3 bg-[#141414] border border-[#2a2a2a] rounded-lg focus:outline-none focus:border-[#c41e3a] transition-colors"
               placeholder="lab@example.com"
+              autoComplete="email"
               required
             />
           </div>
@@ -143,6 +149,7 @@ export default function SignupPage() {
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-3 bg-[#141414] border border-[#2a2a2a] rounded-lg focus:outline-none focus:border-[#c41e3a] transition-colors"
               placeholder="6자 이상"
+              autoComplete="new-password"
               required
             />
           </div>
@@ -155,12 +162,22 @@ export default function SignupPage() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full px-4 py-3 bg-[#141414] border border-[#2a2a2a] rounded-lg focus:outline-none focus:border-[#c41e3a] transition-colors"
               placeholder="비밀번호 재입력"
+              autoComplete="new-password"
               required
             />
           </div>
 
           {error && (
-            <p className="text-[#c41e3a] text-sm">{error}</p>
+            <div className="text-[#c41e3a] text-sm space-y-1">
+              <p>{error}</p>
+              {error.includes('이미 가입') && (
+                <p>
+                  <Link href="/login" className="underline hover:text-white">로그인</Link>
+                  {' · '}
+                  <Link href="/forgot-password" className="underline hover:text-white">비밀번호 찾기</Link>
+                </p>
+              )}
+            </div>
           )}
 
           <button

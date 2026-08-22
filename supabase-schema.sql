@@ -92,3 +92,43 @@ CREATE POLICY "Labs can delete photos of their orders" ON photos
       SELECT 1 FROM orders WHERE orders.id = photos.order_id AND orders.lab_id = auth.uid()
     )
   );
+
+-- Create a lab row when a new auth user signs up (email confirm has no session yet).
+CREATE OR REPLACE FUNCTION public.handle_new_lab_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO public.labs (id, name, email)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'lab_name', '현상소'),
+    COALESCE(NEW.email, '')
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_lab_user();
+
+-- Used by /api/auth/account-status to tell login whether the email exists.
+CREATE OR REPLACE FUNCTION public.auth_email_registered(check_email text)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = auth, public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM auth.users WHERE lower(email) = lower(check_email)
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.auth_email_registered(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.auth_email_registered(text) TO anon, authenticated;

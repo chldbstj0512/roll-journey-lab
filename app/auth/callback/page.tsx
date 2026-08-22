@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase';
+import { ensureLabForUser } from '@/lib/ensure-lab';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import type { EmailOtpType } from '@supabase/supabase-js';
 
 export default function AuthCallbackPage() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
@@ -13,6 +15,32 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     const handleCallback = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      const code = params.get('code');
+      const tokenHash = params.get('token_hash') || hashParams.get('token_hash');
+      const next = params.get('next') || hashParams.get('next');
+      const type = (params.get('type') || hashParams.get('type')) as EmailOtpType | null;
+
+      if (code || params.get('token_hash')) {
+        const confirm = new URL('/auth/confirm', window.location.origin);
+        params.forEach((value, key) => confirm.searchParams.set(key, value));
+        window.location.replace(confirm.toString());
+        return;
+      }
+
+      if (tokenHash) {
+        const { error } = await supabase.auth.verifyOtp({
+          type: type ?? 'recovery',
+          token_hash: tokenHash,
+        });
+        if (error) {
+          setStatus('error');
+          setMessage('인증에 실패했습니다. 링크가 만료되었을 수 있습니다.');
+          return;
+        }
+      }
+
       const { data: { session }, error } = await supabase.auth.getSession();
 
       if (error) {
@@ -21,17 +49,24 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      if (session) {
+      if (session?.user) {
+        const isRecovery = type === 'recovery' || next === '/reset-password';
+        if (isRecovery) {
+          router.replace('/reset-password');
+          return;
+        }
+
+        await ensureLabForUser(supabase, session.user);
         setStatus('success');
         setMessage('이메일 인증이 완료되었습니다!');
-        
         setTimeout(() => {
-          router.push('/dashboard');
+          router.push(next && next.startsWith('/') ? next : '/dashboard');
         }, 2000);
-      } else {
-        setStatus('error');
-        setMessage('세션을 찾을 수 없습니다. 다시 로그인해주세요.');
+        return;
       }
+
+      setStatus('error');
+      setMessage('세션을 찾을 수 없습니다. 휴대폰에서는 Safari 또는 Chrome으로 링크를 열어주세요.');
     };
 
     handleCallback();
@@ -82,10 +117,10 @@ export default function AuthCallbackPage() {
             <h2 className="text-xl font-medium mb-4 text-red-500">인증 실패</h2>
             <p className="text-[#888] mb-6">{message}</p>
             <Link
-              href="/login"
+              href="/forgot-password"
               className="inline-block px-6 py-3 bg-[#c41e3a] hover:bg-[#a01830] rounded-lg transition-colors"
             >
-              로그인 페이지로
+              비밀번호 찾기
             </Link>
           </>
         )}

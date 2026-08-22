@@ -1,0 +1,319 @@
+// R&J Prisma schema
+// Source: ERD v0.2 + API contract v0.2 + state-machines.md
+// Status columns are text + SQL CHECK, not Postgres ENUM.
+// Controllers must not write status. Use domain operations.
+// profiles.id is auth.users.id on Supabase. Local migrate has no auth schema.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Profile {
+  id        String   @id @db.Uuid
+  email     String
+  name      String
+  phone     String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  addresses         Address[]
+  labMembers        LabMember[]
+  orders            Order[]
+  reportedIssues    Issue[]        @relation("IssueReporter")
+  resolvedIssues    Issue[]        @relation("IssueResolver")
+  notifications     Notification[]
+
+  @@map("profiles")
+}
+
+model Address {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  recipientName  String   @map("recipient_name")
+  phone          String
+  postalCode     String   @map("postal_code")
+  address1       String
+  address2       String?
+  memo           String?
+  isDefault      Boolean  @default(false) @map("is_default")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+// SQL-only indexes (partial / expression) live in the init migration:
+// profiles_email_lower_idx, profiles_phone_idx
+// lab_services_catalog_idx (coalesce scan_type)
+// payments_one_active_per_order_idx, payments_provider_payment_id_idx
+// issues_one_open_shipping_per_order, issues_open_idx
+// shipments_tracking_no_idx, photos_upload_session_id_idx
+// orders_photos_expires_at_idx, notifications_status_scheduled_at_idx
+
+model Lab {
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                   String
+  slug                   String   @unique
+  description            String   @default("")
+  logoUrl                String?  @map("logo_url")
+  heroImageUrl           String?  @map("hero_image_url")
+  averageTurnaroundDays  Int?     @map("average_turnaround_days")
+  isActive               Boolean  @default(true) @map("is_active")
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  members  LabMember[]
+  services LabService[]
+  orders   Order[]
+
+  @@map("labs")
+}
+
+model LabMember {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId     String   @map("lab_id") @db.Uuid
+  profileId String   @map("profile_id") @db.Uuid
+  role      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  lab     Lab     @relation(fields: [labId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([labId, profileId])
+  @@index([profileId])
+  @@map("lab_members")
+}
+
+model LabService {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  labId       String   @map("lab_id") @db.Uuid
+  filmType    String   @map("film_type")
+  processType String   @map("process_type")
+  scanType    String?  @map("scan_type")
+  priceKrw    Int      @map("price_krw")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  lab        Lab         @relation(fields: [labId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+
+  @@index([labId])
+  @@map("lab_services")
+}
+
+model Order {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderNo               String    @unique @map("order_no")
+  userId                String    @map("user_id") @db.Uuid
+  labId                 String    @map("lab_id") @db.Uuid
+  status                String    @default("PAYMENT_PENDING")
+  rollCount             Int       @map("roll_count")
+  subtotalKrw           Int       @map("subtotal_krw")
+  pickupRecipientName   String?   @map("pickup_recipient_name")
+  pickupPhone           String?   @map("pickup_phone")
+  pickupPostalCode      String?   @map("pickup_postal_code")
+  pickupAddress1        String?   @map("pickup_address1")
+  pickupAddress2        String?   @map("pickup_address2")
+  pickupMemo            String?   @map("pickup_memo")
+  paidAt                DateTime? @map("paid_at") @db.Timestamptz(6)
+  labReceivedAt         DateTime? @map("lab_received_at") @db.Timestamptz(6)
+  photosReadyAt         DateTime? @map("photos_ready_at") @db.Timestamptz(6)
+  photosExpiresAt       DateTime? @map("photos_expires_at") @db.Timestamptz(6)
+  filesDeletedAt        DateTime? @map("files_deleted_at") @db.Timestamptz(6)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user          Profile        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  lab           Lab            @relation(fields: [labId], references: [id], onDelete: Restrict)
+  items         OrderItem[]
+  payments      Payment[]
+  shipments     Shipment[]
+  rolls         Roll[]
+  events        OrderEvent[]
+  issues        Issue[]
+  notifications Notification[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([labId, status])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("orders")
+}
+
+model OrderItem {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId      String   @map("order_id") @db.Uuid
+  labServiceId String?  @map("lab_service_id") @db.Uuid
+  filmType     String   @map("film_type")
+  processType  String   @map("process_type")
+  scanType     String?  @map("scan_type")
+  quantity     Int
+  unitPriceKrw Int      @map("unit_price_krw")
+  lineTotalKrw Int      @map("line_total_krw")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order   Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  service LabService? @relation(fields: [labServiceId], references: [id], onDelete: SetNull)
+  rolls   Roll[]
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model Payment {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId            String    @map("order_id") @db.Uuid
+  provider           String
+  providerPaymentId  String?   @map("provider_payment_id")
+  method             String?
+  amountKrw          Int       @map("amount_krw")
+  status             String    @default("PENDING")
+  approvedAt         DateTime? @map("approved_at") @db.Timestamptz(6)
+  cancelledAt        DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("payments")
+}
+
+model Shipment {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId            String    @map("order_id") @db.Uuid
+  direction          String    @default("INBOUND")
+  status             String    @default("PENDING")
+  carrier            String?
+  trackingNo         String?   @map("tracking_no")
+  pickupScheduledAt  DateTime? @map("pickup_scheduled_at") @db.Timestamptz(6)
+  pickedUpAt         DateTime? @map("picked_up_at") @db.Timestamptz(6)
+  deliveredAt        DateTime? @map("delivered_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("shipments")
+}
+
+model Roll {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId                 String    @map("order_id") @db.Uuid
+  orderItemId             String    @map("order_item_id") @db.Uuid
+  seq                     Int
+  status                  String    @default("EXPECTED")
+  actualFilmType          String?   @map("actual_film_type")
+  actualProcessType       String?   @map("actual_process_type")
+  photoCount              Int       @default(0) @map("photo_count")
+  receivedAt              DateTime? @map("received_at") @db.Timestamptz(6)
+  developmentStartedAt    DateTime? @map("development_started_at") @db.Timestamptz(6)
+  developmentCompletedAt  DateTime? @map("development_completed_at") @db.Timestamptz(6)
+  scanStartedAt           DateTime? @map("scan_started_at") @db.Timestamptz(6)
+  scanCompletedAt         DateTime? @map("scan_completed_at") @db.Timestamptz(6)
+  releasedAt              DateTime? @map("released_at") @db.Timestamptz(6)
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  photos    Photo[]
+  issues    Issue[]
+
+  @@unique([orderId, seq])
+  @@index([orderItemId])
+  @@index([orderId, status])
+  @@map("rolls")
+}
+
+model Photo {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rollId          String    @map("roll_id") @db.Uuid
+  storageKey      String    @unique @map("storage_key")
+  originalFilename String   @map("original_filename")
+  mimeType        String    @map("mime_type")
+  fileSize        BigInt    @map("file_size")
+  width           Int?
+  height          Int?
+  sortOrder       Int       @default(0) @map("sort_order")
+  uploadSessionId String?   @map("upload_session_id") @db.Uuid
+  uploadStatus    String    @default("PENDING") @map("upload_status")
+  uploadedAt      DateTime? @map("uploaded_at") @db.Timestamptz(6)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  roll Roll @relation(fields: [rollId], references: [id], onDelete: Cascade)
+
+  @@index([rollId, sortOrder])
+  @@map("photos")
+}
+
+model OrderEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId    String   @map("order_id") @db.Uuid
+  type       String
+  fromStatus String?  @map("from_status")
+  toStatus   String?  @map("to_status")
+  actorType  String   @map("actor_type")
+  actorId    String?  @map("actor_id") @db.Uuid
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt(sort: Desc)])
+  @@map("order_events")
+}
+
+model Issue {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId     String    @map("order_id") @db.Uuid
+  rollId      String?   @map("roll_id") @db.Uuid
+  type        String
+  status      String    @default("OPEN")
+  description String?
+  reportedBy  String?   @map("reported_by") @db.Uuid
+  resolvedBy  String?   @map("resolved_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  resolvedAt  DateTime? @map("resolved_at") @db.Timestamptz(6)
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  roll     Roll?    @relation(fields: [rollId], references: [id], onDelete: SetNull)
+  reporter Profile? @relation("IssueReporter", fields: [reportedBy], references: [id], onDelete: SetNull)
+  resolver Profile? @relation("IssueResolver", fields: [resolvedBy], references: [id], onDelete: SetNull)
+
+  @@index([orderId, status])
+  @@map("issues")
+}
+
+model Notification {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  orderId     String    @map("order_id") @db.Uuid
+  type        String
+  channel     String
+  status      String    @default("PENDING")
+  title       String
+  body        String
+  scheduledAt DateTime? @map("scheduled_at") @db.Timestamptz(6)
+  sentAt      DateTime? @map("sent_at") @db.Timestamptz(6)
+  readAt      DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user  Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("notifications")
+}

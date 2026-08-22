@@ -103,6 +103,19 @@ R2_PUBLIC_URL=https://your-r2-domain.com
 npm run dev
 ```
 
+### 5. v0.2 스키마 (로컬 Postgres만)
+
+현재 운영 Supabase는 MVP 3테이블이다. 새 스키마를 그 프로젝트에 적용하지 않는다.
+
+```bash
+cp .env.example .env   # DATABASE_URL → 로컬 Postgres
+docker compose up -d
+npx prisma migrate deploy
+npx prisma generate
+```
+
+새 Supabase 개발 프로젝트에는 `docs/architecture/schema.sql`을 쓴다 (`auth.users` FK + RLS).
+
 ---
 
 ## 📁 프로젝트 구조
