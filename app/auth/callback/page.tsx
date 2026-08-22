@@ -66,7 +66,7 @@ export default function AuthCallbackPage() {
       }
 
       setStatus('error');
-      setMessage('세션을 찾을 수 없습니다. 휴대폰에서는 Safari 또는 Chrome으로 링크를 열어주세요.');
+      setMessage('세션을 찾을 수 없습니다. 로그인 화면에서 인증번호로 재설정해주세요.');
     };
 
     handleCallback();
@@ -117,10 +117,10 @@ export default function AuthCallbackPage() {
             <h2 className="text-xl font-medium mb-4 text-red-500">인증 실패</h2>
             <p className="text-[#888] mb-6">{message}</p>
             <Link
-              href="/forgot-password"
+              href="/login"
               className="inline-block px-6 py-3 bg-[#c41e3a] hover:bg-[#a01830] rounded-lg transition-colors"
             >
-              비밀번호 찾기
+              로그인 페이지로
             </Link>
           </>
         )}

@@ -92,10 +92,10 @@ export default function ResetPasswordPage() {
           <h1 className="text-2xl font-light tracking-widest mb-2">ROLL & JOURNEY</h1>
           <p className="text-[#888] mb-6">재설정 링크가 만료되었거나 유효하지 않습니다.</p>
           <Link
-            href="/forgot-password"
+            href="/login"
             className="inline-block px-6 py-3 bg-[#c41e3a] hover:bg-[#a01830] rounded-lg transition-colors"
           >
-            비밀번호 찾기
+            로그인으로
           </Link>
         </div>
       </div>

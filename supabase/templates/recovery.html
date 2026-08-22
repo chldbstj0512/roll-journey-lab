@@ -1,5 +1,8 @@
+<!--
+  Supabase → Authentication → Email Templates → Reset password
+  Subject: [ROLL & JOURNEY] 비밀번호 인증번호
+-->
 <h2>비밀번호 재설정</h2>
-<p>아래 버튼을 눌러 새 비밀번호를 설정하세요.</p>
-<p>
-  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password">비밀번호 재설정</a>
-</p>
+<p>ROLL & JOURNEY 현상소 계정의 인증번호입니다.</p>
+<p style="font-size:28px;letter-spacing:8px;font-weight:700;">{{ .Token }}</p>
+<p>앱에 이 번호를 입력하세요. 번호는 잠시 후 만료됩니다.</p>
