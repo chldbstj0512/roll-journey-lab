@@ -187,4 +187,5 @@ roll-journey-lab/
 ## 📝 메모
 
 - Supabase 프로젝트 ID: `zdplcnopfeyiesyywtno`
-- 개발 터널 URL: `https://autos-digit-clearance-corner.trycloudflare.com` (임시)
+- 운영 웹: https://roll-journey-lab-indol.vercel.app
+- 카카오 로그인 설정/오류 대응: [docs/kakao-login.md](docs/kakao-login.md)
