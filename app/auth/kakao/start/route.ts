@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerAppOrigin } from '@/lib/auth-redirect';
 import { kakaoCookieNames, kakaoCookieOptions, kakaoCredentials } from '@/lib/kakao-login';
 
 export async function GET(request: NextRequest) {
-  const origin = new URL(request.url).origin;
+  const origin = getServerAppOrigin(request);
   const fail = (message: string) =>
     NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(message)}`);
 

@@ -1,10 +1,12 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureLabForUser } from '@/lib/ensure-lab';
+import { getServerAppOrigin } from '@/lib/auth-redirect';
 import { kakaoCookieNames, kakaoCredentials } from '@/lib/kakao-login';
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const origin = getServerAppOrigin(request);
+  const { searchParams } = new URL(request.url);
   const fail = (message: string) =>
     NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(message)}`);
 
