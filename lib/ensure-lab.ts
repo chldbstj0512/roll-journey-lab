@@ -1,5 +1,12 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 
+function isKakaoUser(user: User) {
+  return (
+    user.app_metadata?.provider === 'kakao' ||
+    user.identities?.some((identity) => identity.provider === 'kakao') === true
+  );
+}
+
 function labErrorMessage(error: { message?: string; code?: string; status?: number }) {
   const blob = `${error.code ?? ''} ${error.message ?? ''}`.toLowerCase();
   if (error.code === '23505' || blob.includes('duplicate')) {
@@ -22,14 +29,21 @@ export async function ensureLabForUser(
   user: User,
   labNameFallback?: string,
 ) {
+  const kakao = isKakaoUser(user);
   const name =
     (labNameFallback && labNameFallback.trim()) ||
     (typeof user.user_metadata?.lab_name === 'string' && user.user_metadata.lab_name.trim()) ||
-    '현상소';
-  const email = user.email?.trim();
-  if (!email) {
-    return { error: '이메일 정보가 없습니다.' };
-  }
+    (kakao
+      ? '현상소'
+      : (typeof user.user_metadata?.full_name === 'string' && user.user_metadata.full_name.trim()) ||
+        (typeof user.user_metadata?.name === 'string' && user.user_metadata.name.trim()) ||
+        '현상소');
+  // Kakao emails are often placeholders. Never treat them as a real lab contact.
+  const email = kakao
+    ? `${user.id}@kakao.local`
+    : user.email?.trim() ||
+      (typeof user.user_metadata?.email === 'string' && user.user_metadata.email.trim()) ||
+      `${user.id}@account.local`;
 
   const { data: existing, error: selectError } = await supabase
     .from('labs')

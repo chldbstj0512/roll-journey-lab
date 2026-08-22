@@ -80,24 +80,8 @@ export default function SignupPage() {
     setLoading(false);
   };
 
-  const handleKakao = async () => {
-    setLoading(true);
-    setError('');
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: 'kakao',
-      options: {
-        redirectTo: authConfirmUrl('/dashboard'),
-      },
-    });
-    if (oauthError) {
-      setError(
-        mapAuthError(
-          oauthError,
-          '카카오 로그인을 사용할 수 없습니다. Supabase에서 Kakao 로그인을 켜주세요.',
-        ),
-      );
-      setLoading(false);
-    }
+  const handleKakao = () => {
+    window.location.assign('/auth/kakao/start');
   };
 
   if (success) {
