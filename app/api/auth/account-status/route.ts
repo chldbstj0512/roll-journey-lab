@@ -22,16 +22,12 @@ export async function POST(request: Request) {
     const admin = createClient(url, serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    const { data, error } = await admin.auth.admin.getUserByEmail(email);
-    if (data?.user) {
-      return NextResponse.json({ exists: true });
-    }
-    const notFound =
-      error?.status === 404 ||
-      (error?.message ?? '').toLowerCase().includes('not found') ||
-      (error?.message ?? '').toLowerCase().includes('unable to find');
-    if (notFound || !error) {
-      return NextResponse.json({ exists: false });
+    const { data, error } = await admin.auth.admin.listUsers({ perPage: 1000 });
+    if (!error) {
+      const exists = (data.users ?? []).some(
+        (user) => user.email?.toLowerCase() === email,
+      );
+      return NextResponse.json({ exists });
     }
   }
 
